@@ -31,6 +31,11 @@ class FaceRecognitionProcessor:
         # Define faces directory
         self.faces_directory = "faces/"  # You can make this configurable
         
+        self.last_recognition_text = None
+        self.text_display_time = None
+        self.text_duration = 2  # Duration in seconds
+
+        
     def compare_with_stored_faces(self, frame):
         """Compare captured frame with all faces stored in faces directory"""
         try:
@@ -106,14 +111,23 @@ class FaceRecognitionProcessor:
             enrollment_code, similarity = self.compare_with_stored_faces(frame)
             if enrollment_code:
                 self.handle_recognition(enrollment_code, similarity, callback)
+                # Update text display time and content
+                self.last_recognition_text = f"Face Recognized: {enrollment_code}"
+                self.text_display_time = time.time()
                 
+            return enrollment_code
         except Exception as e:
             logger.error(f"Error processing frame: {e}")
+            return None
+
 
     def start_camera(self, camera_index=0):
         """Start the camera capture"""
         try:
             self.camera = cv2.VideoCapture(camera_index)
+            # Reduce resolution for better performance
+            self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             if not self.camera.isOpened():
                 raise Exception("Could not open camera")
             logger.info("Camera started successfully")
@@ -136,12 +150,32 @@ class FaceRecognitionProcessor:
                 # Process frame at specified interval
                 current_time = time.time()
                 if (current_time - last_process_time) >= self.recognition_interval:
-                    # Start processing in a separate thread
-                    threading.Thread(
-                        target=self.process_frame,
-                        args=(frame.copy(), callback)
-                    ).start()
+                    # Process frame and get recognition result
+                    recognition_result = self.process_frame(frame.copy(), callback)
                     last_process_time = current_time
+                
+                # Display text if within duration window
+                if self.last_recognition_text and self.text_display_time:
+                    if (current_time - self.text_display_time) <= self.text_duration:
+                        # Draw a green rectangle around the frame
+                        height, width = frame.shape[:2]
+                        cv2.rectangle(frame, (0, 0), (width, height), (0, 255, 0), 2)
+                        
+                        # Display recognition text
+                        cv2.putText(frame, self.last_recognition_text, 
+                                  (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 
+                                  0.7, (0, 255, 0), 2)
+                    else:
+                        # Clear the text after duration expires
+                        self.last_recognition_text = None
+                        self.text_display_time = None
+                
+                # Show the webcam feed in a window
+                cv2.imshow('Smart Check', frame)
+                
+                # Exit when the 'q' key is pressed
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
                 
             except Exception as e:
                 logger.error(f"Error in recognition loop: {e}")
@@ -154,3 +188,5 @@ class FaceRecognitionProcessor:
         self.is_running = False
         if self.camera:
             self.camera.release()
+        cv2.destroyAllWindows()
+        logger.info("Camera stopped and window closed")
