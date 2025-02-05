@@ -155,4 +155,4 @@ processor.run_recognition(callback=sqlite_manager.save_attendance)
 - Face recognition quality filtering
 - Soft delete support for student records
 
-This project was built for a the discipline of Software Design for the bachelors in Software Engineering at the Federal University of Goias (UFG).
+This project was built for the discipline of Software Design for the bachelors in Software Engineering at the Federal University of Goias (UFG).
